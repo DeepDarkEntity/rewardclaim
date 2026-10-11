@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ site }}</title>
+<style>
+:root{--bg:#0f1020;--card:#181a2e;--line:#2a2d4a;--text:#e8e9f5;--muted:#9a9cc0;--accent:#5865f2;--ok:#3ba55d;--err:#ed4245}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+ background:radial-gradient(1200px 600px at 50% -10%,#24265a,var(--bg))}
+header{text-align:center;padding:40px 16px 0}
+h1{margin:0;font-size:2rem} header p{color:var(--muted);margin:6px 0 0}
+main{max-width:1000px;margin:28px auto;padding:0 16px 48px;display:grid;grid-template-columns:1fr 1fr;gap:24px}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px}
+.panel h2,.panel h3{margin:0}
+.step{align-self:flex-start;background:#23264a;color:#aab0ff;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:99px}
+.muted{color:var(--muted);margin:0}
+.tiers{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.tiers li{background:#12132494;border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:flex;gap:10px;flex-wrap:wrap}
+.tiers b{color:#aab0ff;white-space:nowrap} .tiers span{color:var(--muted)}
+.btn{display:inline-block;text-align:center;text-decoration:none;border:0;cursor:pointer;background:var(--accent);color:#fff;font:inherit;font-weight:600;padding:12px 18px;border-radius:10px;transition:filter .15s}
+.btn:hover{filter:brightness(1.12)} .btn:disabled{opacity:.5;cursor:not-allowed}
+input{width:100%;margin:10px 0 12px;padding:12px 14px;font:inherit;font-size:1.1rem;letter-spacing:.12em;text-align:center;text-transform:uppercase;color:var(--text);background:#121324;border:1px solid var(--line);border-radius:10px}
+input:focus{outline:2px solid var(--accent);border-color:transparent}
+#cats{display:flex;flex-direction:column;gap:10px;margin:12px 0}
+.cat{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;color:var(--text);font:inherit;background:#121324;border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer}
+.cat:hover:not(:disabled){border-color:var(--accent)} .cat:disabled{opacity:.45;cursor:not-allowed}
+.cat span{color:var(--muted);font-size:.9rem}
+.link{background:none;border:0;color:var(--muted);cursor:pointer;font:inherit;padding:0}
+.msg{border-radius:10px;padding:10px 14px;font-size:.95rem;border:1px solid}
+.msg.ok{background:#3ba55d22;border-color:var(--ok)} .msg.err{background:#ed424522;border-color:var(--err)}
+.msg a{color:#fff;font-weight:600}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header><h1>🎁 {{ site }}</h1><p>Invite friends, unlock rewards. Two quick steps.</p></header>
+<main>
+  <section class="panel">
+    <span class="step">Step 1</span>
+    <h2>Get your code</h2>
+    <p class="muted">Authorize our bot with Discord. It checks your invites and opens a private ticket in our server with your reward code.</p>
+    {% if tiers %}
+    <ul class="tiers">
+      {% for invites, items in tiers %}
+      <li><b>{{ invites }} invites</b><span>{% for c in items %}{{ c.emoji or '🎁' }} {{ c.name }}{% if not loop.last %}, {% endif %}{% endfor %}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if result %}
+    <div class="msg {{ 'ok' if result.ok else 'err' }}">{{ result.message }}
+      {% if result.link %}<br><a href="{{ result.link }}" target="_blank" rel="noopener">{{ result.link_label or 'Open' }} →</a>{% endif %}
+    </div>
+    {% endif %}
+    <a class="btn" href="/login">Claim Reward</a>
+  </section>
+
+  <section class="panel">
+    <span class="step">Step 2</span>
+    <h2>Redeem your code</h2>
+    <div id="step-code">
+      <p class="muted">Paste the code from your ticket channel.</p>
+      <input id="code" placeholder="XXXX-XXXX-XXXX" maxlength="20" autocomplete="off" spellcheck="false">
+      <button class="btn" id="verify" style="width:100%">Verify code</button>
+    </div>
+    <div id="step-pick" hidden>
+      <p id="pick-title" class="muted"></p>
+      <div id="cats"></div>
+      <button class="link" id="back">← Use a different code</button>
+    </div>
+    <div id="step-done" hidden>
+      <h3>✅ Reward sent!</h3>
+      <p class="muted">Check your ticket channel — your reward is waiting there.</p>
+      <a class="btn" id="done-link" target="_blank" rel="noopener">Open ticket</a>
+    </div>
+    <div id="msg2" class="msg" hidden></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+let code = "";
+const post = async (url, body) => {
+  try {
+    const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    return await r.json();
+  } catch { return {ok: false, error: "Network error, please try again."}; }
+};
+const msg = (t, ok) => { const m = $("#msg2"); m.textContent = t || ""; m.className = "msg " + (ok ? "ok" : "err"); m.hidden = !t; };
+
+$("#code").onkeydown = e => { if (e.key === "Enter") $("#verify").click(); };
+$("#back").onclick = () => { $("#step-pick").hidden = true; $("#step-code").hidden = false; msg(""); };
+
+$("#verify").onclick = async () => {
+  code = $("#code").value.trim();
+  if (!code) return msg("Enter your code first.", false);
+  $("#verify").disabled = true;
+  const j = await post("/api/verify", {code});
+  $("#verify").disabled = false;
+  if (!j.ok) return msg(j.error, false);
+  msg("");
+  $("#step-code").hidden = true; $("#step-pick").hidden = false;
+  $("#pick-title").textContent = `You have ${j.tier} invites. Pick ONE reward — its cost is deducted from your invites.`;
+  const list = $("#cats"); list.replaceChildren();
+  for (const c of j.categories) {
+    const b = document.createElement("button");
+    b.className = "cat"; b.dataset.out = c.stock < 1; b.disabled = c.stock < 1;
+    const n = document.createElement("strong"); n.textContent = `${c.emoji || "🎁"} ${c.name}`;
+    const d = document.createElement("span");
+    d.textContent = c.stock < 1 ? "Out of stock" : `${c.invites} invites` + (c.description ? ` • ${c.description}` : "");
+    b.append(n, d);
+    b.onclick = () => claim(c.id, c.name, c.invites);
+    list.append(b);
+  }
+};
+
+async function claim(id, name, cost) {
+  if (!confirm(`Claim "${name}" for ${cost} invites? Your code can only be used once.`)) return;
+  const btns = document.querySelectorAll(".cat");
+  btns.forEach(b => b.disabled = true);
+  const j = await post("/api/claim", {code, category: id});
+  if (!j.ok) {
+    btns.forEach(b => b.disabled = b.dataset.out === "true");
+    return msg(j.error, false);
+  }
+  msg("");
+  $("#step-pick").hidden = true; $("#step-done").hidden = false;
+  $("#done-link").href = j.link;
+}
+</script>
+</body>
+</html>

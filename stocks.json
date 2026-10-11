@@ -1,0 +1,13 @@
+{
+  "netflix": [
+    "email1@example.com:password1",
+    "email2@example.com:password2"
+  ],
+  "spotify": [
+    "spotify1@example.com:pass1"
+  ],
+  "nitro": [],
+  "vip": [
+    "VIP-KEY-1234"
+  ]
+}

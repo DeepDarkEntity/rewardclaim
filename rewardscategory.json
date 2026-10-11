@@ -1,0 +1,6 @@
+[
+  {"id": "netflix", "name": "Netflix Account", "invites": 5,  "emoji": "🎬", "description": "1 month premium"},
+  {"id": "spotify", "name": "Spotify Premium", "invites": 5,  "emoji": "🎵", "description": "1 month premium"},
+  {"id": "nitro",   "name": "Discord Nitro",   "invites": 10, "emoji": "💎", "description": "1 month Nitro gift link"},
+  {"id": "vip",     "name": "VIP Key",         "invites": 20, "emoji": "👑", "description": "Lifetime VIP key"}
+]
